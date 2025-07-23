@@ -120,11 +120,13 @@ def search_freelancers(
         None, description="Sort by 'hourly_rate', 'available', or 'location'"
     ),
     db: Session = Depends(get_db),
-    # user=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
 
-    # if user.role not in ("client", "admin"):
-    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    if user.role not in ("client", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+        )
 
     query = db.query(Profile).join(User)
 

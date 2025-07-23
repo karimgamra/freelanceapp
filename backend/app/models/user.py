@@ -31,3 +31,9 @@ class User(Base):
         uselist=False,
         cascade="all, delete",
     )
+
+    jobs = relationship(
+        "Job",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
