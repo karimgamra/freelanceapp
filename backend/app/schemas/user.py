@@ -7,7 +7,7 @@ class CreateUser(BaseModel):
     name: str = Field(min_length=6)
     email: str
     password: str
-    role: Literal["client", "freelance"] = Field(default="clinet")
+    role: Literal["client", "freelance"] = Field(default="client")
 
     @field_validator("password")
     def password_validate(cls, v):
