@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
-from psycopg2 import IntegrityError
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from ...models.user import User
@@ -23,6 +22,7 @@ import uuid
 from typing import Literal, Optional
 import os
 from dotenv import load_dotenv
+from ...utils.crud import create_instance
 
 router = APIRouter()
 
@@ -44,22 +44,11 @@ def register(user: CreateUser, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(status_code=409, detail="user is already exit")
 
-    try:
-        new_user = User(
-            name=user.name.strip(),
-            email=user.email.strip().lower(),
-            password=hash_password(user.password),
-            role=user.role,
-        )
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+    user_data = user.dict()
+    user_data["email"] = user_data["email"].strip().lower()
+    user_data["password"] = hash_password(user_data["password"])  # ✅ Hash the password
 
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="User already exists"
-        )
+    new_user = create_instance(db, User, **user_data)
     return new_user
 
 

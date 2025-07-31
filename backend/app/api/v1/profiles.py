@@ -5,6 +5,12 @@ from ...schemas.profile import CreateProfile, UpdateProfile
 from .auth import get_current_user
 from ...models.user import User
 from ...models.profile import Profile
+from ...utils.crud import (
+    create_instance,
+    get_instance_or_404,
+    update_instance,
+    delete_instance,
+)
 from typing import Optional
 
 router = APIRouter()
@@ -18,12 +24,6 @@ def get_user_profile(user: User, db: Session) -> Profile:
             detail="Profile not found for the user",
         )
     return profile
-
-
-def update_model_instance(instance, data: dict):
-    for field, value in data.items():
-        if value is not None:
-            setattr(instance, field, value)
 
 
 @router.post("/profile")
@@ -42,12 +42,13 @@ def create_profile(
     try:
         skills_str = ",".join(profile.skills)
         profile_data = profile.dict(exclude={"skills"})
-        new_profile = Profile(user_id=user.id, skills=skills_str, **profile_data)
-
-        db.add(new_profile)
-        db.commit()
-        db.refresh(new_profile)
-        return new_profile
+        new_profile = create_instance(
+            db, Profile, user_id=user.id, skills=skills_str, **profile_data
+        )
+        return {
+            "message": "Profile created successfully",
+            "profile_id": new_profile.id,
+        }
 
     except Exception as e:
         db.rollback()
@@ -59,10 +60,15 @@ def get_my_profile(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    try:
-        return get_user_profile(user, db)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+    profile = get_instance_or_404(db, Profile)
+    return {
+        "bio": profile.bio,
+        "skills": profile.skills.split(",") if profile.skills else [],
+        "experience": profile.experience,
+        "location": profile.location,
+        "hourly_rate": profile.hourly_rate,
+        "available": profile.available,
+    }
 
 
 @router.put("/profile")
@@ -71,24 +77,15 @@ def update_profile(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    try:
-        current_profile = get_user_profile(user, db)
+    profile = get_user_profile(user, db)
+    update_data = update_profile.dict(exclude_unset=True)
 
-        profile_data = update_profile.dict(exclude_unset=True)
+    if "skills" in update_data:
+        update_data["skills"] = ",".join(update_data["skills"])
 
-        # Special handling for skills (list to string)
-        if "skills" in profile_data:
-            profile_data["skills"] = ",".join(profile_data["skills"])
+    updated_profile = update_instance(db, profile, update_data)
 
-        update_model_instance(current_profile, profile_data)
-
-        db.commit()
-        db.refresh(current_profile)
-        return current_profile
-
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+    return {"message": "Profile updated successfully", "profile_id": updated_profile.id}
 
 
 @router.delete("/profile")
@@ -96,15 +93,9 @@ def delete_user_profile(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    try:
-        profile = get_user_profile(user, db)
-        db.delete(profile)
-        db.commit()
-        return {"detail": "Profile deleted successfully."}
-
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+    profile = get_user_profile(user, db)
+    delete_instance(db, profile)
+    return {"message": "Profile deleted successfully"}
 
 
 @router.get("/freelancers/search")
