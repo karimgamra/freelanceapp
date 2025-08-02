@@ -5,7 +5,6 @@ from uuid import UUID
 
 
 class CreateJob(BaseModel):
-
     title: str
     job_description: str
     location: Optional[str]

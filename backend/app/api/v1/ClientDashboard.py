@@ -1,11 +1,21 @@
+import json
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Query, dependencies, Depends, status
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Query,
+    Request,
+    dependencies,
+    Depends,
+    status,
+)
 from ...models.job import Job
 from ...models.user import User
 from sqlalchemy.orm import Session
 from .auth import get_db, get_current_user
 from sqlalchemy import func
 from datetime import datetime, timedelta
+from ...middleware.redis import make_cache_key, redis
 
 router = APIRouter()
 
@@ -120,13 +130,20 @@ def client_dashboard(
 
 @router.get("/Admin/Dashboard")
 def admin_dashboard(
+    requset: Request,
     db: Session = Depends(get_db),
     limit: int = Query(ge=5, le=20, default=5),
     offset: int = Query(ge=0, le=10, default=0),
     category: Optional[str] = Query(default=None),
+    start_date: datetime = Query(default=None),
 ):
     now = datetime.now()
     week_ago = now - timedelta(days=7)
+
+    cache_reponse = make_cache_key(str(requset.url.path), dict(requset.query_params))
+    cached = redis.get(cache_reponse)
+    if cached:
+        return {"from redis": json.loads(cached)}
 
     #  Total users grouped by role
     total_users_by_role = (
@@ -181,5 +198,5 @@ def admin_dashboard(
             {"category": category, "count": count} for category, count in job_categories
         ],
     }
-
+    redis.setex(cache_reponse, 60, json.dumps(response))
     return response
